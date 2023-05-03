@@ -1,0 +1,7 @@
+__pycache__
+dtrain*.csv
+dtest*.csv
+costo.csv
+cmatriz.csv
+fscores.csv
+w_snn.npz

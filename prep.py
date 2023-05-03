@@ -9,7 +9,6 @@ def save_data(data):
     np.savetxt("dtrain_ye.csv", data['ye'], delimiter=",", fmt='%d')
     np.savetxt("dtest_xv.csv", data['xv'], delimiter=",", fmt='%f')
     np.savetxt("dtest_yv.csv", data['yv'], delimiter="," , fmt='%d')
-
     return
 
 
@@ -27,7 +26,6 @@ def load_data_csv(Param):
     d_test = np.genfromtxt('test.csv', delimiter=',')
     data = dict()
     data['xe'] = d_train[:, :-1]
-    print(data['xe'].shape)
     data['ye'] = binary_label(d_train[:, -1])
     data['xv'] = d_test[:, :-1]
     data['yv'] = binary_label(d_test[:, -1])

@@ -3,47 +3,35 @@ import numpy as np
 import utility as ut
 
 
-# load data for testing
-def load_data_tst():
-    ...
-    return (xv, yv)
+def save_measure(cm,Fsc):
+    np.savetxt('cmatriz.csv', cm,fmt="%d")
+    np.savetxt('fscores.csv', Fsc,fmt="%1.25f")
+ 
+
+def load_w():
+    W = np.load('w_snn.npz', allow_pickle=True)
+    w = W['W']
+    return w
 
 
-# load weight of the DL in numpy format
-def load_w_dl():
-    ...
-    return (W)
-
-
-# Feed-forward of the DL
-def forward_dl(x, W):
-    ...
-    return (zv)
-
-
-# Métrica
-def metricas(x, y):
-    cm = confusion_matrix(x, y)
-    ...
-    return (cm, Fscore)
-
-# Confusuon matrix
-
-
-def confusion_matrix(y, z):
-    ...
-    return (cm)
-
+def load_data_test(param):
+    n = int(param[0])
+    data = np.genfromtxt('dtrn.csv', delimiter=',')
+    x = np.array(data[:,:-n])
+    y = np.array(data[:,-n:])
+    
+    return x,y
+    
 
 # Beginning ...
 def main():
-    xv, yv = load_data_tst()
-    W = load_w_dl()
-    zv = forward_dl(xv, W)
-    cm, Fsc = metricas(yv, zv)
-    print(Fsc*100)
-    print('Fsc-mean {:.5f}'.format(Fsc.mean()*100))
+    param  = ut.load_config()
+    xv,yv  = load_data_test(param)
+    W      = load_w()
+    zv     = ut.forward(xv,W, int(param[6]))
+    cm,Fsc = ut.metricas(yv,zv[len(zv)-1]) 	
+    save_measure(cm,Fsc)
+		
 
-
-if __name__ == '__main__':
-    main()
+if __name__ == '__main__':   
+	 main()

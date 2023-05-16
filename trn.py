@@ -35,19 +35,8 @@ def train_ae_batch(x, y, w1, v1, w2, param):
     act_f = param[1]
     x = x.T
     for i in range(numBatch):
-        print("x = ", x.shape)
-        print("w1 = ", w1.shape)
-        print("w2 = ", w2.shape)
-        print("v = ", v1.shape)
         a = ut.ae_forward(x, w1, w2, act_f)
-        # i = 0
-        # for act in a:
-        #     print("a_", i," = ", act.shape)
-        #     i = +1
-
         gw_1,cost = ut.gradW1(a, w1, w2, act_f)
-        print("gw1 = ", gw_1.shape)
-
         w1, v1 = ut.updW1_rmsprop(w1, v1, gw_1, mu)
     return (w1, v1, cost)
 
@@ -80,7 +69,8 @@ def train_sae(x, y, param):
 
     for hn in range(5, len(param)):
         w1 = train_ae(x, y, hn, param)
-        x = ut.act_function(w1, x, param)
+        z = np.dot(w1.T,x)
+        x = ut.act_function(z, param[1])
         W.append(w1)
     return (W, x)
 

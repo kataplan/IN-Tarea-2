@@ -31,10 +31,9 @@ def gradW1(a, w1, w2, act_f):
 
     e = a[2]-a[0]
     Cost = np.sum(np.sum(e**2))/(2*e.shape[1])
-    z1 = np.dot(w1, a[0].T)
     del_2 = np.multiply(e, 1)
-    xd = np.dot(derivate_act(z1, act_f), a[0])
-    gW = np.multiply(xd.T, np.dot(w2.T, del_2.T))
+    
+    gW = np.dot(a[1],del_2)
     return (gW, Cost)
 
 
@@ -55,15 +54,11 @@ def sort_data_ramdom(X, Y):
 # Update AE's weight via RMSprop
 def updW1_rmsprop(w, v, gw, mu):
     beta, eps = 0.9, 1e-8
-    v_i = np.dot(beta * v + (1 - beta), gw**2).T
-    print("v_i = ",v_i.shape)
-    gRMS = np.dot(gw, 1/(np.sqrt(v_i+eps))).T
-    print("gRms = ",gRMS.shape)
-    xd =  mu*gRMS
-    
-    w_i = w-xd
-    print(w_i.shape)
-    return (w_i, v_i.T)
+    v_i = beta * v + (1 - beta)* gw**2
+    gRMS = np.multiply(gw, 1/(np.sqrt(v_i+eps))).T
+    xd =  mu*gRMS    
+    w_i = w-xd.T
+    return (w_i, v_i)
 
 
 # Update Softmax's weight via RMSprop

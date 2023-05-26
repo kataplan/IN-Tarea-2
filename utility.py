@@ -14,10 +14,12 @@ def iniW(next, prev):
 
 # STEP 1: Feed-forward of AE
 def ae_forward(x, w1, w2, act_func):
-
-    act_1 = act_function(np.dot(x,w1.T), act_func)
-    act_2 = np.dot(w2, act_1)
-    return [x, act_1, act_2.T]
+    A = [x]
+    Z = [np.dot(w1, A[0])]
+    A.append(act_function(Z[0], act_func))
+    Z.append(np.dot(w2, A[1]))
+    A.append(Z[1])
+    return A, Z
 
 
 # Calculate Pseudo-inverse
@@ -25,15 +27,13 @@ def pinv_ae(x, w1, C):
 
     return (w2)
 
-
 # STEP 2: Feed-Backward for AE
-def gradW1(a, w1, w2, act_f):
-
+def gradW1(a, z, w1, w2, act_f):
     e = a[2]-a[0]
     Cost = np.sum(np.sum(e**2))/(2*e.shape[1])
-    del_2 = np.multiply(e, 1)
-    
-    gW = np.dot(a[1],del_2)
+    del_2 = e
+    gW = np.dot(w2.T, del_2) * deriva_act(z[0], act_f)
+    gW = np.dot(gW, a[0].T)
     return (gW, Cost)
 
 
@@ -45,20 +45,19 @@ def updW1_sgdm(w, V, gW, param):
 
 # Sort x y random
 def sort_data_ramdom(X, Y):
-    XY = np.concatenate((X, Y), axis=1)
+    XY = np.concatenate((X, Y), axis=0)
     np.random.shuffle(XY)
-    X_new, Y_new = np.split(XY, [X.shape[1]], axis=1)
-    return X_new, Y_new
+    X, Y = np.split(XY, [X.shape[0]], axis=0)
+    return X, Y
 
 
 # Update AE's weight via RMSprop
 def updW1_rmsprop(w, v, gw, mu):
     beta, eps = 0.9, 1e-8
-    v_i = beta * v + (1 - beta)* gw**2
-    gRMS = np.multiply(gw, 1/(np.sqrt(v_i+eps))).T
-    xd =  mu*gRMS    
-    w_i = w-xd.T
-    return (w_i, v_i)
+    v = beta * v + (1 - beta) * gw**2
+    gRMS = (1/(np.sqrt(v + eps))) * gw
+    w = w - mu*gRMS
+    return (w, v)
 
 
 # Update Softmax's weight via RMSprop
@@ -93,83 +92,34 @@ def save_w_dl(W, Ws, cost):
 
 
 # Activation function
-def act_function(z, function_number):
-    
-    if (function_number == 1):
-        h_z = ReLu_function(z).T
-    if (function_number == 2):
-        h_z = L_ReLu_function(z).T
-    if (function_number == 3):
-        h_z = ELU_function(z).T
-    if (function_number == 4):
-        h_z = SELU_function(z).T
-    if (function_number == 5):
-        h_z = sigmoidal_function(z).T
-    return (h_z)
+def act_function(Z, act_func):
+    if act_func == 1:
+        return np.maximum(0, Z)
+    if act_func == 2:
+        return np.maximum(0.01 * Z, Z)
+    if act_func == 3:
+        return np.where(Z > 0, Z, 1 * (np.exp(Z) - 1))
+    if act_func == 4:
+        lam = 1.0507
+        alpha = 1.6732
+        return np.where(Z > 0, Z, alpha * (np.exp(Z) - 1)) * lam
+    if act_func == 5:
+        return 1 / (1 + np.exp(-Z))
+
+# Derivatives of the activation function
 
 
-def derivate_act(z, function_number):
-    if (function_number == 1):
-        h_z = d_ReLu_function(z)
-    elif (function_number == 2):
-        h_z = d_L_ReLu_function(z)
-    elif (function_number == 3):
-        h_z = d_ELU_function(z)
-    elif (function_number == 4):
-        h_z = d_SELU_function(z)
-    elif (function_number == 5):
-        h_z = d_sigmoidal_function(z)
-    return (h_z)
-
-
-def output_activation(v, h):
-    z = np.dot(v, h.T)
-    y = 1/(1+np.exp(-z))
-    return y.T
-
-
-def ReLu_function(x):
-    return np.where(x > 0, x, 0)
-
-
-def L_ReLu_function(x):
-    return np.where(x < 0, 0.01*x, x)
-
-
-def ELU_function(x):
-    a = 1.6732
-    return np.where(x > 0, x, a*(np.exp(x)-1))
-
-
-def SELU_function(x):
-    a = 1.6732
-    lam = 1.0507
-    return np.where(x > 0, x*lam, a*(np.exp(x)-1))
-
-
-def sigmoidal_function(z):
-    return 1.0/(1.0+np.exp(-z))
-
-
-def d_ReLu_function(x):
-    return np.maximum(0, x)
-
-
-def d_L_ReLu_function(x):
-    return np.where(x < 0, 0.01*x, x)
-
-
-def d_ELU_function(x):
-    a = 1.6732
-    return np.where(x > 0, 1, a*np.exp(x))
-
-
-def d_SELU_function(x):
-    lam = 1.0507
-    a = 1.6732
-    return np.where(x > 0, 1, a*np.exp(x))*lam
-
-
-def d_sigmoidal_function(z):
-    return (np.multiply(1/(1+np.exp(-z)), 1-(1/(1+np.exp(-z))))).T
-# -----------------------------------------------------------------------
+def deriva_act(A, act_func):
+    if act_func == 1:
+        return np.where(A >= 0, 1, 0)
+    if act_func == 2:
+        return np.where(A >= 0, 1, 0.01)
+    if act_func == 3:
+        return np.where(A >= 0, 1, 0.01 * np.exp(A))
+    if act_func == 4:
+        lam = 1.0507
+        alpha = 1.6732
+        return np.where(A > 0, 1, alpha * np.exp(A)) * lam
+    if act_func == 5:
+        s = act_function(A, act_func)
+        return s * (1 - s)

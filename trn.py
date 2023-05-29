@@ -1,94 +1,89 @@
-# Training DL via RMSProp+Pinv
+# SNN's Training :
 
 import pandas as pd
 import numpy as np
 import utility as ut
+import prep as pr
+
 
 # Training miniBatch for softmax
+def train_sft_batch(x, y, W, V, param):
 
-
-def train_sft_batch(x, y, W, v, param):
-    batch_size = int(param[2])
-   
-    num_batch = int(x.shape[1]/batch_size)
-    costs = []
-    for i in range(num_batch):
-        idx = get_Idx_n_Batch(batch_size, i)
-        xe = x[:, idx]
-        ye = y[:, idx]
+    costo = []
+    n_batch = int(param[2])
+    numBatch = np.int16(np.floor(x.shape[1]/n_batch))
+    for n in range(numBatch):
+        idx = get_Idx_n_Batch(n, n_batch)
+        xe, ye = x[:, slice(*idx)], y[:, slice(*idx)]
         z = np.dot(W, xe)
         a = ut.softmax(z)
-        gW, cost = ut.gradW_softmax(xe, ye, a, W)
-        v, W = ut.updW_sft_rmsprop(W, v, gW, param[1])
-        costs.append(cost)
-    return W, v, costs
-
+        gW, c = ut.gradW_softmax(xe, ye, a, W)
+        W, V = ut.updWV_RMSprop_softmax(W, V, gW, param[1])
+        costo.append(c)
+    return W, V, costo
 
 # Softmax's training via SGD with Momentum
-def train_softmax(x, y, param):
-    w = ut.iniW(x.shape[0], x.shape[0])
-    v = np.zeros(w.shape)
-    costs = []
 
-    for iter in range(1, int(param[0]+1)):
-        idx = np.random.permutation(x.shape[1])
-        xe, ye = x[:, idx], y[:, idx]
-        w, v, c = train_sft_batch(xe, ye, w, v, param)
-        costs.append(np.mean(c))
-        if iter % 10 == 0:
-            print(f"Iterar-Softmax:{iter}, {costs[iter-1]}")
-    return (w, costs)
+
+def train_softmax(X, Y, param):
+    W = ut.iniW(Y.shape[0], X.shape[0])
+    V = np.zeros(W.shape)
+    cost = []
+    for i in range(1, int(param[0])+1):
+        idx = np.random.permutation(X.shape[1])
+        xe, ye = X[:, idx], Y[:, idx]
+        W, V, c = train_sft_batch(xe, ye, W, V, param)
+        cost.append(np.mean(c))
+        if i % 10 == 0:
+            print(f"Iterar-AE: {i},{np.mean(cost)}")
+    return W, cost
 
 
 # AE's Training with miniBatch
-
-def train_ae_batch(x, y, w1, v1, w2, param):
-    batch_size = param[3]
-    numBatch = np.int16(np.floor(x.shape[1]/batch_size))
-    cost_array = []
-    for i in range(numBatch):
-        idx = get_Idx_n_Batch(batch_size, i)
-        xe = x[:, idx]
-        a, z = ut.ae_forward(xe, w1, w2, int(param[1]))
-        e = a[2]-a[0]
-        cost = np.sum(np.sum(e**2))/(2*e.shape[1])
-        w1, w2 = ut.backward_ae(a, z, w1, w2, v1, param)
-        cost_array.append(cost)
-    return (w1, cost_array)
+def train_ae_batch(X, W, v, param):
+    numBatch = np.int16(np.floor(X.shape[1]/param[3]))
+    cost = []
+    W[1] = ut.pinv_ae(X, ut.act_function(np.dot(W[0], X), param[1]), param[0])
+    for n in range(numBatch):
+        idx = get_Idx_n_Batch(n, int(param[3]))
+        xe = X[:, slice(*idx)]
+        a = ut.forward_ae(xe, W, param)
+        gW, Cost = ut.gradW_ae(a, W, param)
+        W[0], v[0] = ut.updWV_RMSprop(W, v, gW, param[4])
+        cost.append(Cost)
+    return W, v, cost
 
 
 # gets Index for n-th miniBatch
-def get_Idx_n_Batch(batch_size, i):
-    return np.arange(i*batch_size, i*batch_size + batch_size, dtype=int)
+def get_Idx_n_Batch(n, M):
+    return n*M, (n*M)+M  # tuple de indices
 
 
 # AE's Training by use miniBatch RMSprop+Pinv
-def train_ae(x, y, param, w1, w2, v1):
-    maxIter = int(param[2])
-    for i in range(1, maxIter):
-        xe = x[:, np.random.permutation(x.shape[1])]
-        w1, cost = train_ae_batch(xe, y, w1, v1, w2, param)
+def train_ae(X, ae_layers, param):
+    W, v = ut.iniWs(X.shape[0], ae_layers)
+    cost = []
+    for i in range(1, int(param[2])+1):
+        xe = X[:, np.random.permutation(X.shape[1])]
+        W, v, c = train_ae_batch(xe, W, v, param)
+        cost.append(np.mean(c))
         if i % 10 == 0:
-            print(f"Iterar-AE: {i},{np.mean(cost)}")
-    return w1
-
+            print(f"Iterar-Softmax: {i},{np.mean(cost)}")
+    return W
 
 # SAE's Training
-def train_sae(x, y, param):
-    W = []
 
-    for hn in range(5, len(param)):
-        w1 = ut.iniW(int(param[hn]), x.shape[0])
-        w2 = ut.iniW(x.shape[0], int(param[hn]))
-        v1 = np.zeros_like(w1)
-        w = train_ae(x, y, param, w1, w2, v1)
-        z = np.dot(w1, x)
-        x = ut.act_function(z, param[1])
-        W.append(w)
+
+def train_sae(x, param):
+    W = []
+    for i, n in enumerate(param[5:]):
+        w1 = train_ae(x, int(n), param)
+        x = ut.act_function(np.dot(w1[0], x), param[1])
+        W.append(w1[0])
     return W, x
 
 
-# load Data for Training
+# Load data to train the SNN
 def load_data_trn():
     xe = np.genfromtxt('dtrain_xe.csv', delimiter=',')
     ye = np.genfromtxt('dtrain_ye.csv', delimiter=',')
@@ -96,17 +91,12 @@ def load_data_trn():
     return (xe, ye)
 
 
-def save_w_cost(W, cost):
-    np.savez(w_snn.npz)
-    xe = np.genfromtxt("data/train.csv", delimiter=",")
-
-
-# Beginning
+# Beginning ...
 def main():
     p_sae, p_sft = ut.load_config()
     xe, ye = load_data_trn()
-    W, xr = train_sae(xe.T, ye.T, p_sae)
-    Ws, cost = train_softmax(xr.T, ye.T, p_sft)
+    W, Xr = train_sae(xe.T, p_sae)
+    Ws, cost = train_softmax(Xr, ye.T, p_sft)
     ut.save_w_dl(W, Ws, cost)
 
 
